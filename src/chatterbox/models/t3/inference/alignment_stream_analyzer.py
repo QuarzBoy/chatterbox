@@ -155,7 +155,7 @@ class AlignmentStreamAnalyzer:
         token_repetition = (
             # self.complete and 
             len(self.generated_tokens) >= 3 and
-            len(set(self.generated_tokens[-2:])) == 1
+            all(t == self.generated_tokens[-1] for t in self.generated_tokens[-3:])
         )
         
         if token_repetition:
@@ -167,16 +167,12 @@ class AlignmentStreamAnalyzer:
             logits[..., self.eos_idx] = -2**15
 
         # If a bad ending is detected, force emit EOS by modifying logits
-        # if long_tail or alignment_repetition or token_repetition:
-        #     logger.warning(f"forcing EOS token, {long_tail=}, {alignment_repetition=}, {token_repetition=}")
-        #     # (±2**15 is safe for all dtypes >= 16bit)
-        #     logits = -(2**15) * torch.ones_like(logits)
-        #     logits[..., self.eos_idx] = 2**15
+        # NOTE: this means logits may be inconsistent with latents!
         if long_tail or alignment_repetition or token_repetition:
-            logger.warning(f"⚠️ Repetition detected, but EOS suppression disabled (allow continuation)")
-            # 🔇 Не вставляем EOS, пусть модель дочитывает
-            # logits = -(2**15) * torch.ones_like(logits)
-            # logits[..., self.eos_idx] = 2**15
+            logger.warning(f"forcing EOS token, {long_tail=}, {alignment_repetition=}, {token_repetition=}")
+            # (±2**15 is safe for all dtypes >= 16bit)
+            logits = -(2**15) * torch.ones_like(logits)
+            logits[..., self.eos_idx] = 2**15
 
         self.curr_frame_pos += 1
         return logits
